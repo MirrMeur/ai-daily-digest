@@ -2,8 +2,8 @@ name: AI Daily Digest
 
 on:
   schedule:
-    # UTC 0:00 = 北京时间 8:00
-    - cron: '0 0 * * *'
+    # UTC 23:39 = 北京时间 7:39
+    - cron: '39 23 * * *'
   workflow_dispatch:
 
 jobs:
@@ -55,7 +55,7 @@ jobs:
             --hours 24 \
             --top-n 15 \
             --lang zh \
-            --output "digests/digest-$(date +%Y%m%d).md"
+            --output "digests/digest-$(TZ=Asia/Shanghai date +%Y%m%d).md"
 
       - name: Commit and push digest
         run: |
@@ -65,21 +65,21 @@ jobs:
           if git diff --staged --quiet; then
             echo "No new digest to commit"
           else
-            git commit -m "📰 Daily digest $(date +%Y-%m-%d)"
+            git commit -m "📰 Daily digest $(TZ=Asia/Shanghai date +%Y-%m-%d)"
             git push
           fi
 
       - name: Push to WeChat via ServerChan
         if: success()
         run: |
-          DIGEST_FILE="digests/digest-$(date +%Y%m%d).md"
+          DIGEST_FILE="digests/digest-$(TZ=Asia/Shanghai date +%Y%m%d).md"
           if [ ! -f "$DIGEST_FILE" ]; then
             echo "No digest file found, skipping push"
             exit 0
           fi
 
           # Extract highlights and top 5 articles for WeChat message
-          TITLE="📰 AI 每日精选 $(date +%Y-%m-%d)"
+          TITLE="📰 AI 每日精选 $(TZ=Asia/Shanghai date +%Y-%m-%d)"
           DESP=$(awk '
             /^## 📝 今日看点/{found=1; next}
             /^## 🏆 今日必读/{found=1; next}
