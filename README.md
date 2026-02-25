@@ -1,8 +1,8 @@
 # AI Daily Digest
 
-每天自动从 90 个顶级技术博客抓取最新文章，通过 Gemini AI 评分筛选，生成结构化的每日精选日报。
+每天自动从 90 个顶级技术博客抓取最新文章 + 30中文圈X上爆款文章（关注列表可自定义），通过 Gemini AI 评分筛选，生成结构化的每日精选日报。
 
-基于 [vigorX777/ai-daily-digest](https://github.com/vigorX777/ai-daily-digest)，通过 GitHub Actions 自动化部署。
+通过 GitHub Actions 自动化部署。
 
 ## 运行方式
 
