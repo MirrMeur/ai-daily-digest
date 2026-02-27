@@ -631,8 +631,24 @@ ${articlesList}
 async function scoreArticlesWithAI(
   articles: Article[],
   aiClient: AIClient
-): Promise<Map<number, { relevance: number; quality: number; timeliness: number; category: CategoryId; keywords: string[] }>> {
-  const allScores = new Map<number, { relevance: number; quality: number; timeliness: number; category: CategoryId; keywords: string[] }>();
+): Promise<Map<number, { 
+  practicality: number;
+  deployability: number;
+  technicalValue: number;
+  timeliness: number;
+  nonTechRedundancy: number;
+  category: CategoryId;
+  keywords: string[];
+}>> {
+  const allScores = new Map<number, { 
+    practicality: number;
+    deployability: number;
+    technicalValue: number;
+    timeliness: number;
+    nonTechRedundancy: number;
+    category: CategoryId;
+    keywords: string[];
+  }>();
   
   const indexed = articles.map((article, index) => ({
     index,
@@ -1190,11 +1206,30 @@ async function main(): Promise<void> {
   console.log(`[digest] Step 3/5: AI scoring ${recentArticles.length} articles...`);
   const scores = await scoreArticlesWithAI(recentArticles, aiClient);
   
+  // 适配新的5维度评分+新分类体系
   const scoredArticles = recentArticles.map((article, index) => {
-    const score = scores.get(index) || { relevance: 5, quality: 5, timeliness: 5, category: 'other' as CategoryId, keywords: [] };
+    // 1. 修正默认值：旧字段→新5维度，分类 other → other-ai
+    const score = scores.get(index) || { 
+      practicality: 3,    // 新维度：技术实用性（默认3分）
+      deployability: 3,   // 新维度：可落地性（默认3分）
+      technicalValue: 3,  // 新维度：技术含金量（默认3分）
+      timeliness: 3,      // 保留但归属新维度（默认3分）
+      nonTechRedundancy: 3,// 新维度：非技术冗余度（默认3分）
+      category: 'other-ai' as CategoryId, // 新分类默认值
+      keywords: [] 
+    };
+  
+    // 2. 修正总分计算：5维度加权求和（权重可根据需求调整）
+    const totalScore = 
+      score.practicality * 1.0 +    // 技术实用性
+      score.deployability * 1.0 +   // 可落地性
+      score.technicalValue * 1.0 +  // 技术含金量
+      score.timeliness * 1.0 +      // 时效性
+      score.nonTechRedundancy * 1.0;// 非技术冗余度
+  
     return {
       ...article,
-      totalScore: score.relevance + score.quality + score.timeliness,
+      totalScore: Math.round(totalScore), // 四舍五入为整数，方便排序
       breakdown: score,
     };
   });
@@ -1208,6 +1243,7 @@ async function main(): Promise<void> {
   const indexedTopArticles = topArticles.map((a, i) => ({ ...a, index: i }));
   const summaries = await summarizeArticles(indexedTopArticles, aiClient, lang);
   
+  // 3. 修正 finalArticles 的 scoreBreakdown 结构，对齐新接口
   const finalArticles: ScoredArticle[] = topArticles.map((a, i) => {
     const sm = summaries.get(i) || { titleZh: a.title, summary: a.description.slice(0, 200), reason: '' };
     return {
@@ -1217,13 +1253,16 @@ async function main(): Promise<void> {
       description: a.description,
       sourceName: a.sourceName,
       sourceUrl: a.sourceUrl,
-      score: a.totalScore,
+      score: a.totalScore, // 加权后的总分
       scoreBreakdown: {
-        relevance: a.breakdown.relevance,
-        quality: a.breakdown.quality,
+        // 替换为新的5个维度，和 ScoredArticle 接口严格对齐
+        practicality: a.breakdown.practicality,
+        deployability: a.breakdown.deployability,
+        technicalValue: a.breakdown.technicalValue,
         timeliness: a.breakdown.timeliness,
+        nonTechRedundancy: a.breakdown.nonTechRedundancy,
       },
-      category: a.breakdown.category,
+      category: a.breakdown.category, // 已修正为新分类（chat-tts/image-video等）
       keywords: a.breakdown.keywords,
       titleZh: sm.titleZh,
       summary: sm.summary,
