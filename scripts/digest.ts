@@ -130,15 +130,17 @@ function buildXFeeds(): Array<{ name: string; xmlUrl: string; htmlUrl: string }>
 // Types
 // ============================================================================
 
-type CategoryId = 'ai-ml' | 'security' | 'engineering' | 'tools' | 'opinion' | 'other';
+// 替换原有分类为新的AI分类体系
+type CategoryId = 'chat-tts' | 'image-video' | 'music-generate' | 'ai-coding' | 'ai-cowork' | 'other-ai';
 
+// 更新分类元数据
 const CATEGORY_META: Record<CategoryId, { emoji: string; label: string }> = {
-  'ai-ml':       { emoji: '🤖', label: 'AI / ML' },
-  'security':    { emoji: '🔒', label: '安全' },
-  'engineering': { emoji: '⚙️', label: '工程' },
-  'tools':       { emoji: '🛠', label: '工具 / 开源' },
-  'opinion':     { emoji: '💡', label: '观点 / 杂谈' },
-  'other':       { emoji: '📝', label: '其他' },
+  'chat-tts':       { emoji: '🗣️', label: '聊天TTS模型' },
+  'image-video':    { emoji: '🎨', label: '图像视频生成模型' },
+  'music-generate': { emoji: '🎵', label: '音乐生成工具产品和模型' },
+  'ai-coding':      { emoji: '💻', label: 'AIcoding' },
+  'ai-cowork':      { emoji: '📊', label: 'AIcowork' },
+  'other-ai':       { emoji: '🔬', label: '其他AI技术' },
 };
 
 interface Article {
@@ -150,12 +152,15 @@ interface Article {
   sourceUrl: string;
 }
 
+// 更新评分结构，适配新的5维度打分（1-5分）
 interface ScoredArticle extends Article {
-  score: number;
+  score: number; // 总分（可由5个维度加权计算）
   scoreBreakdown: {
-    relevance: number;
-    quality: number;
-    timeliness: number;
+    practicality: number;    // 技术实用性
+    deployability: number;  // 可落地性
+    technicalValue: number; // 技术含金量
+    timeliness: number;     // 时效性
+    nonTechRedundancy: number; // 非技术冗余度
   };
   category: CategoryId;
   keywords: string[];
@@ -164,12 +169,15 @@ interface ScoredArticle extends Article {
   reason: string;
 }
 
+// 更新Gemini评分结果类型
 interface GeminiScoringResult {
   results: Array<{
     index: number;
-    relevance: number;
-    quality: number;
-    timeliness: number;
+    practicality: number;    // 技术实用性
+    deployability: number;  // 可落地性
+    technicalValue: number; // 技术含金量
+    timeliness: number;     // 时效性
+    nonTechRedundancy: number; // 非技术冗余度
     category: string;
     keywords: string[];
   }>;
@@ -541,45 +549,63 @@ function parseJsonResponse<T>(text: string): T {
 // AI Scoring
 // ============================================================================
 
+// 更新评分提示词，适配新的分类和打分标准
 function buildScoringPrompt(articles: Array<{ index: number; title: string; description: string; sourceName: string }>): string {
   const articlesList = articles.map(a =>
     `Index ${a.index}: [${a.sourceName}] ${a.title}\n${a.description.slice(0, 300)}`
   ).join('\n\n---\n\n');
 
-  return `你是一个技术内容策展人，正在为一份面向技术爱好者的每日精选摘要筛选文章。
+  return `你是一个AI技术内容策展人，正在为一份面向AI开发者的每日精选摘要筛选文章。
 
-请对以下文章进行三个维度的评分（1-10 整数，10 分最高），并为每篇文章分配一个分类标签和提取 2-4 个关键词。
+请对以下文章进行五个维度的评分（1-5 整数，5 分最高），并为每篇文章分配一个分类标签和提取 2-4 个关键词。
 
-## 评分维度
+## 评分维度（每个维度1-5分，5分最高）
 
-### 1. 相关性 (relevance) - 对技术/编程/AI/互联网从业者的价值
-- 10: 所有技术人都应该知道的重大事件/突破
-- 7-9: 对大部分技术从业者有价值
-- 4-6: 对特定技术领域有价值
-- 1-3: 与技术行业关联不大
+### 1. 技术实用性 (practicality)
+- 5分：提供可直接使用的工具/模型/代码/方案，对开发有重大实际帮助
+- 4分：提供可直接使用的工具/模型/代码/方案，对开发有较大实际帮助
+- 3分：提供可直接使用的工具/模型/代码/方案，对开发有一定实际帮助
+- 2分：提供的内容有潜在实用价值，但需二次开发才能使用
+- 1分：无直接可用内容，仅理论探讨
 
-### 2. 质量 (quality) - 文章本身的深度和写作质量
-- 10: 深度分析，原创洞见，引用丰富
-- 7-9: 有深度，观点独到
-- 4-6: 信息准确，表达清晰
-- 1-3: 浅尝辄止或纯转述
+### 2. 可落地性 (deployability)
+- 5分：可快速接入、部署、调用、复现，文档完善，无技术门槛
+- 4分：可接入、部署、调用、复现，文档较完善，技术门槛低
+- 3分：可接入、部署、调用、复现，文档一般，有一定技术门槛
+- 2分：理论上可落地，但缺乏文档/示例，技术门槛较高
+- 1分：难以落地，仅停留在理论层面
 
-### 3. 时效性 (timeliness) - 当前是否值得阅读
-- 10: 正在发生的重大事件/刚发布的重要工具
-- 7-9: 近期热点相关
-- 4-6: 常青内容，不过时
-- 1-3: 过时或无时效价值
+### 3. 技术含金量 (technicalValue)
+- 5分：包含核心原理、详细实现细节、性能对比、踩坑点等深度内容
+- 4分：包含原理、实现细节、性能数据等较深度内容
+- 3分：包含基本原理和实现思路，有一定技术深度
+- 2分：仅介绍表面功能，无核心原理/细节
+- 1分：纯科普/介绍，无技术细节
+
+### 4. 时效性 (timeliness)
+- 5分：近7天内新发布/新更新的技术，行业热点
+- 4分：近30天内新发布/新更新的技术，有一定热度
+- 3分：近90天内发布/更新的技术，仍有参考价值
+- 2分：超过90天的技术，但仍有一定时效性
+- 1分：过时技术，无时效价值
+
+### 5. 非技术冗余度 (nonTechRedundancy)
+- 5分：无任何商业资讯、八卦、无关赛道内容，纯技术干货
+- 4分：极少商业资讯/八卦，90%以上为纯技术干货
+- 3分：少量商业资讯/八卦，80%以上为纯技术干货
+- 2分：较多商业资讯/八卦，50%-80%为技术内容
+- 1分：大量商业资讯/八卦，技术内容占比低于50%
 
 ## 分类标签（必须从以下选一个）
-- ai-ml: AI、机器学习、LLM、深度学习相关
-- security: 安全、隐私、漏洞、加密相关
-- engineering: 软件工程、架构、编程语言、系统设计
-- tools: 开发工具、开源项目、新发布的库/框架
-- opinion: 行业观点、个人思考、职业发展、文化评论
-- other: 以上都不太适合的
+- chat-tts: 聊天TTS模型（包含大语言模型（LLM）、对话Agent、聊天机器人、语音合成（TTS）、语音识别（ASR）、口语生成、语音交互、多轮对话、音色迁移、语音助手等相关技术与应用）
+- image-video: 图像视频生成模型（包含文生图、图生图、图像超分、图像修复、文生视频、视频生成、AIGC视觉、扩散模型、图像编辑、目标检测、图像理解、姿态/深度/分割等视觉类技术）
+- music-generate: 音乐生成工具产品和模型（包含AI音乐生成、歌声合成、旋律/编曲/配乐生成、音频生成、音乐大模型、音乐创作辅助工具、音乐类AI产品等相关内容）
+- ai-coding: AIcoding（包含代码生成、代码补全、代码理解、代码审查、自动编程、低代码/无代码AI辅助、AI编程助手、代码解释、测试用例生成、编程类大模型、代码专用LLM、面向开发者的AI模型、Claude、GPT系列等用于编程/开发场景的AI模型）
+- ai-cowork: AIcowork（包含AI协同办公、文档智能处理、会议总结、知识库问答、办公自动化（RPA+AI）、企业协作工具、工作流AI优化、知识管理、办公效率类AI工具等）
+- other-ai: 其他AI技术（不属于上述5个类别的AI技术内容，包括但不限于AI基础算法（无具体应用场景）、AI伦理/政策、AI教育、通用AI理论、非上述领域的AI工具/模型等）
 
 ## 关键词提取
-提取 2-4 个最能代表文章主题的关键词（用英文，简短，如 "Rust", "LLM", "database", "performance"）
+提取 2-4 个最能代表文章主题的关键词（用英文，简短，如 "LLM", "TTS", "Stable Diffusion", "AI Coding"）
 
 ## 待评分文章
 
@@ -590,11 +616,13 @@ ${articlesList}
   "results": [
     {
       "index": 0,
-      "relevance": 8,
-      "quality": 7,
-      "timeliness": 9,
-      "category": "engineering",
-      "keywords": ["Rust", "compiler", "performance"]
+      "practicality": 5,
+      "deployability": 4,
+      "technicalValue": 5,
+      "timeliness": 4,
+      "nonTechRedundancy": 5,
+      "category": "chat-tts",
+      "keywords": ["LLM", "TTS", "语音交互"]
     }
   ]
 }`;
@@ -620,7 +648,8 @@ async function scoreArticlesWithAI(
   
   console.log(`[digest] AI scoring: ${articles.length} articles in ${batches.length} batches`);
   
-  const validCategories = new Set<string>(['ai-ml', 'security', 'engineering', 'tools', 'opinion', 'other']);
+  // 更新有效分类集合
+  const validCategories = new Set<string>(['chat-tts', 'image-video', 'music-generate', 'ai-coding', 'ai-cowork', 'other-ai']);
   
   for (let i = 0; i < batches.length; i += MAX_CONCURRENT_GEMINI) {
     const batchGroup = batches.slice(i, i + MAX_CONCURRENT_GEMINI);
@@ -632,12 +661,15 @@ async function scoreArticlesWithAI(
         
         if (parsed.results && Array.isArray(parsed.results)) {
           for (const result of parsed.results) {
-            const clamp = (v: number) => Math.min(10, Math.max(1, Math.round(v)));
-            const cat = (validCategories.has(result.category) ? result.category : 'other') as CategoryId;
+            // 修正分数范围为1-5
+            const clamp = (v: number) => Math.min(5, Math.max(1, Math.round(v)));
+            const cat = (validCategories.has(result.category) ? result.category : 'other-ai') as CategoryId;
             allScores.set(result.index, {
-              relevance: clamp(result.relevance),
-              quality: clamp(result.quality),
+              practicality: clamp(result.practicality),
+              deployability: clamp(result.deployability),
+              technicalValue: clamp(result.technicalValue),
               timeliness: clamp(result.timeliness),
+              nonTechRedundancy: clamp(result.nonTechRedundancy),
               category: cat,
               keywords: Array.isArray(result.keywords) ? result.keywords.slice(0, 4) : [],
             });
@@ -646,7 +678,16 @@ async function scoreArticlesWithAI(
       } catch (error) {
         console.warn(`[digest] Scoring batch failed: ${error instanceof Error ? error.message : String(error)}`);
         for (const item of batch) {
-          allScores.set(item.index, { relevance: 5, quality: 5, timeliness: 5, category: 'other', keywords: [] });
+          // 默认分数改为3分（1-5分中间值）
+          allScores.set(item.index, { 
+            practicality: 3,
+            deployability: 3,
+            technicalValue: 3,
+            timeliness: 3,
+            nonTechRedundancy: 3,
+            category: 'other-ai',
+            keywords: [] 
+          });
         }
       }
     });
