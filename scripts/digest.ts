@@ -641,15 +641,16 @@ async function scoreArticlesWithAI(
   category: CategoryId;
   keywords: string[];
 }>> {
-  const allScores = new Map<number, { 
-    practicality: number;
-    deployability: number;
-    technicalValue: number;
-    timeliness: number;
-    nonTechRedundancy: number;
-    category: CategoryId;
-    keywords: string[];
-  }>();
+const allScores = new Map<number, { 
+  score: number;  // ✅ 添加
+  practicality: number;
+  deployability: number;
+  technicalValue: number;
+  timeliness: number;
+  nonTechRedundancy: number;
+  category: CategoryId;
+  keywords: string[];
+}>();
   
   const indexed = articles.map((article, index) => ({
     index,
@@ -706,6 +707,7 @@ async function scoreArticlesWithAI(
         for (const item of batch) {
           // 默认分数改为3分（1-5分中间值）
           allScores.set(item.index, { 
+            score: 15,  // ✅ 添加默认总分
             practicality: 3,
             deployability: 3,
             technicalValue: 3,
@@ -1080,7 +1082,7 @@ function generateDigestReport(articles: ScoredArticle[], highlights: string, sta
       const scoreTotal = a.score;
 
       report += `### ${globalIndex}. ${a.titleZh || a.title}\n\n`;
-      report += `[${a.title}](${a.link}) — **${a.sourceName}** · ${humanizeTime(a.pubDate)} · ⭐ ${scoreTotal}/30\n\n`;
+      report += `[${a.title}](${a.link}) — **${a.sourceName}** · ${humanizeTime(a.pubDate)} · ⭐ ${scoreTotal}/25\n\n`;
       report += `> ${a.summary}\n\n`;
       if (a.keywords.length > 0) {
         report += `🏷️ ${a.keywords.join(', ')}\n\n`;
