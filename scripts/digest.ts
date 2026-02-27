@@ -632,6 +632,7 @@ async function scoreArticlesWithAI(
   articles: Article[],
   aiClient: AIClient
 ): Promise<Map<number, { 
+  score: number; // ✓ 添加总分
   practicality: number;
   deployability: number;
   technicalValue: number;
@@ -680,7 +681,16 @@ async function scoreArticlesWithAI(
             // 修正分数范围为1-5
             const clamp = (v: number) => Math.min(5, Math.max(1, Math.round(v)));
             const cat = (validCategories.has(result.category) ? result.category : 'other-ai') as CategoryId;
+            // ✓ 计算总分（5个维度等权重或加权）
+            const totalScore = 
+              clamp(result.practicality) * 1.0 +
+              clamp(result.deployability) * 1.0 +
+              clamp(result.technicalValue) * 1.0 +
+              clamp(result.timeliness) * 1.0 +
+              clamp(result.nonTechRedundancy) * 1.0;
+            
             allScores.set(result.index, {
+              score: totalScore, // ✓ 存储总分
               practicality: clamp(result.practicality),
               deployability: clamp(result.deployability),
               technicalValue: clamp(result.technicalValue),
@@ -1067,7 +1077,7 @@ function generateDigestReport(articles: ScoredArticle[], highlights: string, sta
 
     for (const a of catArticles) {
       globalIndex++;
-      const scoreTotal = a.scoreBreakdown.relevance + a.scoreBreakdown.quality + a.scoreBreakdown.timeliness;
+      const scoreTotal = a.score;
 
       report += `### ${globalIndex}. ${a.titleZh || a.title}\n\n`;
       report += `[${a.title}](${a.link}) — **${a.sourceName}** · ${humanizeTime(a.pubDate)} · ⭐ ${scoreTotal}/30\n\n`;
@@ -1245,30 +1255,29 @@ async function main(): Promise<void> {
   
   // 3. 修正 finalArticles 的 scoreBreakdown 结构，对齐新接口
   const finalArticles: ScoredArticle[] = topArticles.map((a, i) => {
-    const sm = summaries.get(i) || { titleZh: a.title, summary: a.description.slice(0, 200), reason: '' };
-    return {
-      title: a.title,
-      link: a.link,
-      pubDate: a.pubDate,
-      description: a.description,
-      sourceName: a.sourceName,
-      sourceUrl: a.sourceUrl,
-      score: a.totalScore, // 加权后的总分
-      scoreBreakdown: {
-        // 替换为新的5个维度，和 ScoredArticle 接口严格对齐
-        practicality: a.breakdown.practicality,
-        deployability: a.breakdown.deployability,
-        technicalValue: a.breakdown.technicalValue,
-        timeliness: a.breakdown.timeliness,
-        nonTechRedundancy: a.breakdown.nonTechRedundancy,
-      },
-      category: a.breakdown.category, // 已修正为新分类（chat-tts/image-video等）
-      keywords: a.breakdown.keywords,
-      titleZh: sm.titleZh,
-      summary: sm.summary,
-      reason: sm.reason,
-    };
-  });
+  const sm = summaries.get(i) || { titleZh: a.title, summary: a.description.slice(0, 200), reason: '' };
+  return {
+    title: a.title,
+    link: a.link,
+    pubDate: a.pubDate,
+    description: a.description,
+    sourceName: a.sourceName,
+    sourceUrl: a.sourceUrl,
+    score: a.totalScore, // ✓ 从已计算的totalScore来
+    scoreBreakdown: {
+      practicality: a.breakdown.practicality,
+      deployability: a.breakdown.deployability,
+      technicalValue: a.breakdown.technicalValue,
+      timeliness: a.breakdown.timeliness,
+      nonTechRedundancy: a.breakdown.nonTechRedundancy,
+    },
+    category: a.breakdown.category,
+    keywords: a.breakdown.keywords,
+    titleZh: sm.titleZh,
+    summary: sm.summary,
+    reason: sm.reason,
+  };
+});
   
   console.log(`[digest] Step 5/5: Generating today's highlights...`);
   const highlights = await generateHighlights(finalArticles, aiClient, lang);
