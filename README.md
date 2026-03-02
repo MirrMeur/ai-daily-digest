@@ -5,8 +5,8 @@
 ## 它能做什么
 
 - **多源聚合** — 订阅 90 个来自 [Hacker News Popularity Contest 2025](https://hnblogs.substack.com/)（Andrej Karpathy 策划）的技术博客 RSS，加上 25+ 个 X/Twitter 技术大V账号
-- **AI 智能评分** — 使用 Gemini AI 从相关性、质量、时效性三个维度（各 1-10 分）对每篇文章打分
-- **自动分类** — 将文章归入 AI/ML、安全、工程、工具/开源、观点/讨论、其他 六大分类
+- **AI 智能评分** — 使用 Gemini AI 从技术实用性、可落地性、技术含金量、时效性、非技术冗余度 5 个核心维度（各 1-5 分）对每篇文章量化打分对每篇文章打分
+- **自动分类** — 将文章归入 chat-tts、image-video、music-generate、ai-coding、ai-cowork、other-ai 六大 AI 技术领域
 - **中文摘要** — 为每篇英文文章生成中文标题、4-6 句摘要和推荐理由
 - **趋势洞察** — AI 生成当日宏观技术趋势总结
 - **可视化统计** — 包含分类分布饼图、关键词频率图表
