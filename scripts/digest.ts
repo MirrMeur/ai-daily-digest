@@ -6,7 +6,13 @@ import process from 'node:process';
 // Constants
 // ============================================================================
 
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+// 注释原有 Gemini 配置（不再使用）
+// const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+// 新增：网易伏羲配置（核心替换）
+const NETEASE_FUXI_API_BASE = 'https://aigc-api.fuxi.netease.com/v1';
+const NETEASE_FUXI_MODEL = 'gemini-3-flash-preview';
+
+// 保留原有 OpenAI 配置（兜底用）
 const OPENAI_DEFAULT_API_BASE = 'https://api.openai.com/v1';
 const OPENAI_DEFAULT_MODEL = 'gpt-4o-mini';
 const FEED_FETCH_TIMEOUT_MS = 15_000;
@@ -387,69 +393,25 @@ async function fetchAllFeeds(feeds: typeof RSS_FEEDS): Promise<Article[]> {
 }
 
 // ============================================================================
-// AI Providers (Gemini + OpenAI-compatible fallback)
+// AI Providers (直接用网易伏羲替换 Gemini)
 // ============================================================================
 
-async function callGemini(prompt: string, apiKey: string): Promise<string> {
-  const MAX_RETRIES = 3;
-  const RETRY_DELAYS = [30_000, 60_000, 90_000]; // 30s, 60s, 90s
+// 删除原有 callGemini 函数（整段移除）
 
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.3,
-          topP: 0.8,
-          topK: 40,
-        },
-      }),
-    });
-
-    if (response.status === 429 && attempt < MAX_RETRIES) {
-      const errorText = await response.text().catch(() => '');
-      // Try to parse "retry after Xs" from the error message
-      const retryMatch = errorText.match(/retry\s+(?:after\s+|in\s+)([\d.]+)s/i);
-      const waitMs = retryMatch
-        ? Math.ceil(parseFloat(retryMatch[1]) * 1000)
-        : RETRY_DELAYS[attempt];
-      const waitSec = Math.round(waitMs / 1000);
-      console.warn(`[digest] Gemini 429 rate limited (attempt ${attempt + 1}/${MAX_RETRIES}), retrying in ${waitSec}s...`);
-      await new Promise(resolve => setTimeout(resolve, waitMs));
-      continue;
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'Unknown error');
-      throw new Error(`Gemini API error (${response.status}): ${errorText}`);
-    }
-
-    const data = await response.json() as {
-      candidates?: Array<{
-        content?: { parts?: Array<{ text?: string }> };
-      }>;
-    };
-
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  }
-
-  throw new Error('Gemini API: max retries exceeded (429 rate limit)');
-}
-
+// 保留 callOpenAICompatible 函数（完全复用，因为网易伏羲兼容该逻辑）
 async function callOpenAICompatible(
   prompt: string,
   apiKey: string,
   apiBase: string,
   model: string
 ): Promise<string> {
+  // 函数内容完全不变（网易伏羲兼容 OpenAI 协议）
   const normalizedBase = apiBase.replace(/\/+$/, '');
   const response = await fetch(`${normalizedBase}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
+      'Authorization': `Bearer ${apiKey}`, // 网易伏羲通常用 Bearer + API Key
     },
     body: JSON.stringify({
       model,
@@ -483,55 +445,59 @@ async function callOpenAICompatible(
   return '';
 }
 
+// 保留 inferOpenAIModel 函数（不变）
 function inferOpenAIModel(apiBase: string): string {
   const base = apiBase.toLowerCase();
   if (base.includes('deepseek')) return 'deepseek-chat';
   return OPENAI_DEFAULT_MODEL;
 }
 
+// 修改 createAIClient：用网易伏羲替换 Gemini
 function createAIClient(config: {
-  geminiApiKey?: string;
+  neteaseApiKey?: string;
   openaiApiKey?: string;
   openaiApiBase?: string;
   openaiModel?: string;
 }): AIClient {
   const state = {
-    geminiApiKey: config.geminiApiKey?.trim() || '',
+    // 核心：网易伏羲配置（替代原本的 Gemini）
+    neteaseApiKey: config.neteaseApiKey?.trim() || '',
+    neteaseApiBase: NETEASE_FUXI_API_BASE,
+    neteaseModel: NETEASE_FUXI_MODEL,
+    // 保留 OpenAI 兜底（可选）
     openaiApiKey: config.openaiApiKey?.trim() || '',
     openaiApiBase: (config.openaiApiBase?.trim() || OPENAI_DEFAULT_API_BASE).replace(/\/+$/, ''),
-    openaiModel: config.openaiModel?.trim() || '',
-    geminiEnabled: Boolean(config.geminiApiKey?.trim()),
+    openaiModel: config.openaiModel?.trim() || inferOpenAIModel(config.openaiApiBase || ''),
     fallbackLogged: false,
   };
 
-  if (!state.openaiModel) {
-    state.openaiModel = inferOpenAIModel(state.openaiApiBase);
-  }
-
   return {
     async call(prompt: string): Promise<string> {
-      if (state.geminiEnabled && state.geminiApiKey) {
+      // 优先调用网易伏羲（替代原本的 Gemini 优先级）
+      if (state.neteaseApiKey) {
         try {
-          return await callGemini(prompt, state.geminiApiKey);
+          return await callOpenAICompatible(
+            prompt,
+            state.neteaseApiKey,
+            state.neteaseApiBase,
+            state.neteaseModel
+          );
         } catch (error) {
+          console.warn(`[digest] 网易伏羲调用失败: ${error instanceof Error ? error.message : String(error)}`);
+          // 降级到 OpenAI（可选）
           if (state.openaiApiKey) {
-            if (!state.fallbackLogged) {
-              const reason = error instanceof Error ? error.message : String(error);
-              console.warn(`[digest] Gemini failed, switching to OpenAI-compatible fallback (${state.openaiApiBase}, model=${state.openaiModel}). Reason: ${reason}`);
-              state.fallbackLogged = true;
-            }
-            state.geminiEnabled = false;
             return callOpenAICompatible(prompt, state.openaiApiKey, state.openaiApiBase, state.openaiModel);
           }
           throw error;
         }
       }
 
+      // 原有 OpenAI 兜底逻辑（不变）
       if (state.openaiApiKey) {
         return callOpenAICompatible(prompt, state.openaiApiKey, state.openaiApiBase, state.openaiModel);
       }
 
-      throw new Error('No AI API key configured. Set GEMINI_API_KEY and/or OPENAI_API_KEY.');
+      throw new Error('未配置AI密钥！请设置 NETEASE_API_KEY（网易伏羲）或 OPENAI_API_KEY');
     },
   };
 }
@@ -1156,19 +1122,20 @@ async function main(): Promise<void> {
     }
   }
   
-  const geminiApiKey = process.env.GEMINI_API_KEY;
+  const neteaseApiKey = process.env.NETEASE_FUXI_API_KEY;
   const openaiApiKey = process.env.OPENAI_API_KEY;
   const openaiApiBase = process.env.OPENAI_API_BASE;
   const openaiModel = process.env.OPENAI_MODEL;
 
-  if (!geminiApiKey && !openaiApiKey) {
-    console.error('[digest] Error: Missing API key. Set GEMINI_API_KEY and/or OPENAI_API_KEY.');
-    console.error('[digest] Gemini key: https://aistudio.google.com/apikey');
+  // 关键：更新校验逻辑，检查 neteaseApiKey
+  if (!neteaseApiKey && !openaiApiKey) {
+    console.error('[digest] Error: Missing API key. Set NETEASE_FUXI_API_KEY and/or OPENAI_API_KEY.');
+    console.error('[digest] 网易伏羲密钥获取：https://fuxi.netease.com/（替换为实际地址）');
     process.exit(1);
   }
 
   const aiClient = createAIClient({
-    geminiApiKey,
+    neteaseApiKey,
     openaiApiKey,
     openaiApiBase,
     openaiModel,
@@ -1184,7 +1151,7 @@ async function main(): Promise<void> {
   console.log(`[digest] Top N: ${topN}`);
   console.log(`[digest] Language: ${lang}`);
   console.log(`[digest] Output: ${outputPath}`);
-  console.log(`[digest] AI provider: ${geminiApiKey ? 'Gemini (primary)' : 'OpenAI-compatible (primary)'}`);
+  console.log(`[digest] AI provider: ${neteaseApiKey ? 'neteasefuxi (primary)' : 'OpenAI-compatible (primary)'}`);
   if (openaiApiKey) {
     const resolvedBase = (openaiApiBase?.trim() || OPENAI_DEFAULT_API_BASE).replace(/\/+$/, '');
     const resolvedModel = openaiModel?.trim() || inferOpenAIModel(resolvedBase);
