@@ -1,132 +1,192 @@
 # AI Daily Digest
 
-每天自动从 **90+ 顶级技术博客** 和 **25+ X/Twitter 账号** 抓取最新内容，通过 **Gemini AI** 智能评分、分类和摘要，生成结构化的中文每日技术精选日报，并自动推送到微信。
+每天自动从 **90+ 顶级技术博客** 和自定义 X/Twitter 账号抓取最新内容，通过 **网易伏羲 AI（兼容 OpenAI 协议）** 智能评分、分类和摘要，生成结构化的中文每日 AI 技术精选日报。
 
 ## 它能做什么
 
-- **多源聚合** — 订阅 90 个来自 [Hacker News Popularity Contest 2025](https://hnblogs.substack.com/)（Andrej Karpathy 策划）的技术博客 RSS，加上 25+ 个 X/Twitter 技术大V账号
-- **AI 智能评分** — 使用 Gemini AI 从技术实用性、可落地性、技术含金量、时效性、非技术冗余度 5 个核心维度（各 1-5 分）对每篇文章量化打分对每篇文章打分
+- **多源聚合** — 订阅 90 个来自 [Hacker News Popularity Contest 2025](https://hnblogs.substack.com/)（Andrej Karpathy 策划）的技术博客 RSS，支持自定义添加 X/Twitter 技术账号
+- **AI 智能评分** — 使用网易伏羲 AI（兜底支持 OpenAI）从**技术实用性、可落地性、技术含金量、时效性、非技术冗余度** 5个核心维度（各 1-5 分）对每篇文章量化打分
 - **自动分类** — 将文章归入 chat-tts、image-video、music-generate、ai-coding、ai-cowork、other-ai 六大 AI 技术领域
-- **中文摘要** — 为每篇英文文章生成中文标题、4-6 句摘要和推荐理由
-- **趋势洞察** — AI 生成当日宏观技术趋势总结
-- **可视化统计** — 包含分类分布饼图、关键词频率图表
-- **微信推送** — 通过 Server酱 自动将精选内容推送到微信
-- **全自动化** — GitHub Actions 定时运行，零人工干预
+- **中文摘要** — 为每篇文章生成自然流畅的中文标题、4-6 句结构化摘要和 1 句话推荐理由
+- **高可用设计** — 内置超时控制、失败降级、并发限制机制，AI 调用失败自动切换兜底方案
+- **灵活扩展** — 可自定义 RSS 源、评分权重、分类体系、输出格式
+- **全自动化** — 支持定时运行，零人工干预
 
 ## 工作流程
 
 ```
-RSS Feeds (90个博客)  ──┐
-                        ├──→ 抓取文章 → 时间过滤 → AI 评分 → 选取 Top N → AI 摘要 → 生成日报 → 推送
-X/Twitter (25+账号)  ──┘
+RSS Feeds (90个AI技术博客)  ──┐
+                             ├──→ 并发抓取 → AI 多维度评分 → AI 分类 → 生成摘要 → 输出结构化精选内容
+X/Twitter (自定义账号)      ──┘
 ```
 
 **详细流程：**
 
-1. **抓取** — 并发获取 90+ RSS 源和 X/Twitter 动态（通过 RSSHub 代理）
-2. **过滤** — 筛选最近 24 小时内发布的文章
-3. **评分** — Gemini AI 分批评估（10 篇/批），三维度打分 + 自动分类 + 关键词提取
-4. **精选** — 按总分排序，选取 Top 15
-5. **摘要** — 为精选文章生成中文标题、摘要和推荐理由，并生成当日趋势分析
-6. **输出** — 渲染为结构化 Markdown 日报，保存到 `digests/` 目录
-7. **推送** — 自动提交到 GitHub 并推送摘要到微信
+1. **抓取** — 并发获取 90+ RSS 源和自定义 X/Twitter 动态（通过 RSSHub 代理），内置 15 秒超时控制
+2. **过滤** — 解析文章元数据，过滤无效内容
+3. **评分** — 网易伏羲 AI 分批评估（10 篇/批），5 维度打分（1-5 分）+ 自动分类 + 关键词提取（2-4 个）
+4. **摘要** — 为文章生成中文标题、4-6 句结构化摘要和 1 句话推荐理由
+5. **输出** — 生成结构化的精选内容（支持自定义输出格式）
 
-## 日报示例
+## 核心能力说明
 
-每份日报包含：
+### 多维度 AI 评分体系
+AI 从5个核心维度对每篇文章进行1-5分量化评估（5分最高）：
+- **技术实用性**：内容的实际开发价值和可直接使用程度
+- **可落地性**：技术方案的部署/接入难度和文档完善度
+- **技术含金量**：内容的技术深度和细节丰富度
+- **时效性**：技术内容的新鲜度和行业热度
+- **非技术冗余度**：纯技术干货占比（过滤商业/八卦内容）
 
-- **今日看点** — 3-5 句宏观趋势总结
-- **今日必读 Top 5** — 最高分文章详细展示
-- **数据概览** — 来源数、文章数统计表 + 可视化图表
-- **分类文章列表** — 按六大分类展示所有精选文章，每篇含评分、摘要、推荐理由和关键词
+### 智能分类体系
+自动将文章归类到6大AI技术领域：
+- 🗣️ chat-tts：聊天/TTS模型（LLM、语音合成、语音交互等）
+- 🎨 image-video：图像视频生成模型（文生图/视频、扩散模型等）
+- 🎵 music-generate：音乐生成工具/模型
+- 💻 ai-coding：AI编程辅助（代码生成、编程大模型等）
+- 📊 ai-cowork：AI协同办公（文档处理、办公自动化等）
+- 🔬 other-ai：其他AI技术（基础算法、伦理、教育等）
 
-> 查看历史日报：[`digests/`](./digests/) 目录
+### 结构化摘要能力
+为每篇文章生成：
+- **中文标题**：英文标题自动翻译为自然流畅的中文
+- **结构化摘要**：4-6句话核心内容摘要（30秒快速了解文章价值）
+- **推荐理由**：1句话说明文章的核心价值和阅读理由
+- **关键词提取**：2-4个核心技术关键词
 
 ## 技术栈
 
 | 组件 | 技术 |
 |------|------|
-| 运行时 | [Bun](https://bun.sh/) |
+| 运行时 | [Bun](https://bun.sh/) / Node.js |
 | 语言 | TypeScript |
-| AI 评分 | Google Gemini 2.0 Flash |
-| AI 备选 | DeepSeek（OpenAI 兼容接口） |
-| X/Twitter 代理 | [RSSHub](https://docs.rsshub.app/)（Docker） |
-| 自动化 | GitHub Actions |
-| 微信推送 | [Server酱](https://sct.ftqq.com/) |
+| 核心 AI 能力 | 网易伏羲 API（gemini-3-flash-preview） |
+| AI 兜底方案 | OpenAI API（gpt-4o-mini，兼容协议） |
+| X/Twitter 代理 | [RSSHub](https://docs.rsshub.app/) |
+| 并发控制 | 可配置的批量处理和并发限制 |
+| 错误处理 | 超时控制、失败降级、默认值兜底 |
 
 ## 快速开始
+
+### 环境准备
+需配置以下环境变量（优先使用网易伏羲）：
+
+| 变量名 | 说明 | 必填 |
+|--------|------|------|
+| `NETEASE_API_KEY` | 网易伏羲 API 密钥 | ✅ |
+| `OPENAI_API_KEY` | OpenAI API 密钥（兜底备用） | ❌ |
+| `OPENAI_API_BASE` | OpenAI 兼容 API 地址 | ❌ |
+| `RSSHUB_BASE_URL` | RSSHub 地址（用于X/Twitter RSS） | ❌ |
+| `X_ACCOUNTS` | X/Twitter 账号列表（逗号分隔） | ❌ |
 
 ### 本地运行
 
 ```bash
-# 安装 Bun（如未安装）
-curl -fsSL https://bun.sh/install | bash
+# 安装依赖（推荐使用 Bun）
+bun install
 
-# 运行
-GEMINI_API_KEY=your-key bun scripts/digest.ts \
-  --hours 24 \
-  --top-n 15 \
-  --lang zh \
-  --output digest.md
+# 或使用 npm
+npm install
+
+# 设置网易伏羲 API 密钥
+export NETEASE_API_KEY="your-netease-fuxi-api-key"
+
+# 运行主程序
+bun run index.ts
+
+# 或使用 Node.js
+node index.ts
 ```
 
-### 命令行参数
+### 核心配置项（可自定义）
 
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `--hours <n>` | 抓取最近 N 小时的文章 | `48` |
-| `--top-n <n>` | 精选文章数量 | `15` |
-| `--lang <lang>` | 摘要语言（`zh` / `en`） | `zh` |
-| `--output <path>` | 输出文件路径 | `./digest-YYYYMMDD.md` |
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `FEED_FETCH_TIMEOUT_MS` | Feed 抓取超时时间 | 15000 (15秒) |
+| `FEED_CONCURRENCY` | Feed 抓取并发数 | 10 |
+| `GEMINI_BATCH_SIZE` | AI 调用批量大小 | 10 |
+| `MAX_CONCURRENT_GEMINI` | 最大并发 AI 调用数 | 2 |
+| `NETEASE_FUXI_MODEL` | 网易伏羲使用模型 | gemini-3-flash-preview |
+| `OPENAI_DEFAULT_MODEL` | OpenAI 默认模型 | gpt-4o-mini |
 
-### GitHub Actions 自动部署
-
-Fork 本仓库后，在 **Settings → Secrets and variables → Actions** 中配置：
-
-**Secrets（必需）：**
-
-| Secret | 说明 |
-|--------|------|
-| `GEMINI_API_KEY` | Gemini API Key（[免费获取](https://aistudio.google.com/apikey)） |
-
-**Secrets（可选）：**
-
-| Secret | 说明 |
-|--------|------|
-| `DEEPSEEK_API_KEY` | DeepSeek API Key，作为 Gemini 的备用方案 |
-| `X_AUTH_TOKEN` | X/Twitter 认证 Token，用于抓取 X 动态 |
-| `X_CT0` | X/Twitter CSRF Token |
-| `SERVERCHAN_KEY` | Server酱 Key，用于微信推送 |
-
-**Variables（可选）：**
-
-| Variable | 说明 |
-|----------|------|
-| `X_ACCOUNTS` | 要关注的 X 账号列表（逗号分隔） |
-
-配置完成后，GitHub Actions 会在每天**北京时间 7:39** 自动运行，也可在 Actions 页面手动触发。
-
-## 日报存放
-
-所有日报保存在 `digests/` 目录下，文件名格式 `digest-YYYYMMDD.md`。
-
-## 自定义
+## 自定义扩展
 
 ### 修改 RSS 源
-
-编辑 `scripts/digest.ts` 中的 `RSS_FEEDS` 数组，添加或移除 RSS 源。
-
-### 修改 X 账号
-
-在 GitHub Actions Variables 中修改 `X_ACCOUNTS`，或在本地运行时设置环境变量：
-
-```bash
-X_ACCOUNTS=account1,account2,account3
+编辑代码中的 `RSS_FEEDS` 数组，添加/移除/修改博客源：
+```typescript
+const RSS_FEEDS = [
+  { 
+    name: "自定义博客名称", 
+    xmlUrl: "https://your-blog.com/rss.xml", 
+    htmlUrl: "https://your-blog.com" 
+  },
+  // 更多源...
+];
 ```
 
-### 修改运行时间
+### 自定义 X/Twitter 账号
+设置环境变量指定要抓取的 X/Twitter 账号：
+```bash
+export X_ACCOUNTS="account1,account2,account3"
+```
 
-编辑 `.github/workflows/daily-digest.yml` 中的 cron 表达式。
+### 调整评分维度权重
+修改 `scoreArticlesWithAI` 函数中的总分计算逻辑：
+```typescript
+// 示例：提升技术实用性权重
+const totalScore = 
+  clamp(result.practicality) * 1.5 +  // 1.5倍权重
+  clamp(result.deployability) * 1.0 +
+  clamp(result.technicalValue) * 1.2 +
+  clamp(result.timeliness) * 1.0 +
+  clamp(result.nonTechRedundancy) * 0.8;
+```
+
+### 扩展分类体系
+修改 `CategoryId` 类型和 `CATEGORY_META` 配置，新增/调整分类：
+```typescript
+// 新增分类示例
+type CategoryId = 'chat-tts' | 'image-video' | 'music-generate' | 'ai-coding' | 'ai-cowork' | 'other-ai' | 'new-category';
+
+const CATEGORY_META = {
+  'new-category': { emoji: '🆕', label: '新分类名称' },
+  // 其他分类配置...
+};
+```
+
+### 自定义输出格式
+扩展结果处理逻辑，支持生成 Markdown、HTML、JSON 等格式：
+```typescript
+// 示例：生成 Markdown 格式输出
+function generateMarkdownSummary(scoredArticles: ScoredArticle[]) {
+  let md = "# AI 每日精选\n\n";
+  scoredArticles.forEach(article => {
+    md += `## ${article.titleZh}\n`;
+    md += `> 来源: [${article.sourceName}](${article.sourceUrl})\n`;
+    md += `> 分类: ${CATEGORY_META[article.category].emoji} ${CATEGORY_META[article.category].label}\n`;
+    md += `> 评分: ${article.score.toFixed(1)}/25\n`;
+    md += `> 关键词: ${article.keywords.join(', ')}\n\n`;
+    md += `${article.summary}\n\n`;
+    md += `**推荐理由**: ${article.reason}\n\n`;
+    md += `[阅读原文](${article.link})\n\n---\n\n`;
+  });
+  return md;
+}
+```
+
+## 容错与性能优化
+
+### 错误处理机制
+- Feed 抓取超时自动中止（15秒），失败仅记录警告不中断整体流程
+- AI 调用失败自动降级到备用 API（OpenAI）
+- 评分/摘要生成失败时使用合理默认值兜底
+- 分数自动修正到 1-5 分范围（防止 AI 返回异常值）
+
+### 性能优化策略
+- 分批次并发处理 Feed 抓取（默认10个并发）
+- 分批次调用 AI API（默认每批10篇，2个并发批次）
+- 限制摘要长度和描述长度，减少 AI 处理负载
+- 复用 HTTP 连接和 AI 客户端实例
 
 ## License
 
