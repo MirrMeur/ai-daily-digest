@@ -144,8 +144,8 @@ const CATEGORY_META: Record<CategoryId, { emoji: string; label: string }> = {
   'chat-tts':       { emoji: '🗣️', label: '聊天TTS模型' },
   'image-video':    { emoji: '🎨', label: '图像视频生成模型' },
   'music-generate': { emoji: '🎵', label: '音乐生成工具产品和模型' },
-  'ai-coding':      { emoji: '💻', label: 'AIcoding' },
-  'ai-cowork':      { emoji: '📊', label: 'AIcowork' },
+  'ai-coding':      { emoji: '💻', label: 'AIcoding(SDD)' },
+  'ai-cowork':      { emoji: '📊', label: 'AIcowork(龙虾)' },
   'other-ai':       { emoji: '🔬', label: '其他AI技术' },
 };
 
